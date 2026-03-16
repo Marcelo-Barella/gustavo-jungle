@@ -2,7 +2,12 @@ import random
 import math
 import pygame
 from settings import WAVE_BASE_ENEMIES, WAVE_DELAY, MAP_WIDTH, MAP_HEIGHT
-from entities.enemy import Panther, Lion, Snake, Gorilla
+from entities.enemy import (
+    Panther, Lion, Snake, Gorilla,
+    JungleKingLion, AncientGorilla, VenomQueen,
+)
+
+_BOSS_CYCLE = [JungleKingLion, AncientGorilla, VenomQueen]
 
 
 class WaveSpawner:
@@ -13,6 +18,7 @@ class WaveSpawner:
         self.wave_active = False
         self.enemies_in_wave = 0
         self.waiting = False
+        self.boss_active = False
 
     def start(self):
         self.waiting = True
@@ -21,6 +27,10 @@ class WaveSpawner:
     @property
     def current_wave_number(self) -> int:
         return self.current_wave
+
+    @property
+    def is_boss_wave(self) -> bool:
+        return self.current_wave > 0 and self.current_wave % 5 == 0
 
     def update(self, dt, player, enemy_group, asset_gen):
         if self.waiting:
@@ -31,30 +41,48 @@ class WaveSpawner:
         elif self.wave_active:
             alive = sum(1 for e in enemy_group if e.is_alive)
             if alive == 0:
+                self.boss_active = False
                 self.waiting = True
                 self.wave_timer = WAVE_DELAY
+
+            for e in enemy_group:
+                if isinstance(e, JungleKingLion) and e.is_alive:
+                    e.try_roar(enemy_group)
+                elif isinstance(e, VenomQueen) and e.is_alive:
+                    e.try_summon(enemy_group)
 
     def spawn_wave(self, player, enemy_group, asset_gen):
         self.current_wave += 1
         n = self.current_wave
         to_spawn = []
 
-        panther_count = WAVE_BASE_ENEMIES + n
+        is_boss = n % 5 == 0
+
+        if is_boss:
+            boss_index = (n // 5 - 1) % len(_BOSS_CYCLE)
+            boss_cls = _BOSS_CYCLE[boss_index]
+            pos = self._edge_pos(player.pos)
+            to_spawn.append(boss_cls(pos, asset_gen))
+            self.boss_active = True
+
+        normal_mult = 0.5 if is_boss else 1.0
+
+        panther_count = int((WAVE_BASE_ENEMIES + n) * normal_mult)
         for _ in range(panther_count):
             pos = self._edge_pos(player.pos)
             to_spawn.append(Panther(pos, asset_gen))
 
-        lion_count = n // 3 if player.level >= 3 else 0
+        lion_count = int((n // 3 if player.level >= 3 else 0) * normal_mult)
         for _ in range(lion_count):
             pos = self._edge_pos(player.pos)
             to_spawn.append(Lion(pos, asset_gen))
 
-        snake_count = n // 4 if player.level >= 2 else 0
+        snake_count = int((n // 4 if player.level >= 2 else 0) * normal_mult)
         for _ in range(snake_count):
             pos = self._edge_pos(player.pos)
             to_spawn.append(Snake(pos, asset_gen))
 
-        gorilla_count = n // 6 if player.level >= 5 else 0
+        gorilla_count = int((n // 6 if player.level >= 5 else 0) * normal_mult)
         for _ in range(gorilla_count):
             pos = self._edge_pos(player.pos)
             to_spawn.append(Gorilla(pos, asset_gen))

@@ -33,6 +33,22 @@ LION_STATS = dict(hp=80, attack=20, defense=8, speed=1.2, xp=40, min_level=3)
 SNAKE_STATS = dict(hp=20, attack=5, defense=1, speed=2.0, xp=10, min_level=2, poison_dps=2, poison_duration=3.0)
 GORILLA_STATS = dict(hp=150, attack=25, defense=12, speed=0.8, xp=80, min_level=5, slam_radius=80)
 
+JUNGLE_KING_STATS = dict(
+    hp=500, attack=35, defense=15, speed=1.0, xp=200,
+    charge_range=150, ground_pound_radius=120, ground_pound_windup=0.8,
+    roar_speed_buff=0.5, roar_buff_duration=5.0, roar_cooldown=10.0,
+)
+ANCIENT_GORILLA_STATS = dict(
+    hp=800, attack=45, defense=20, speed=0.6, xp=350,
+    slam_radius=100, rock_toss_speed=6, rock_toss_range=250,
+    enrage_threshold=0.3, enrage_attack_mult=1.5, enrage_speed_mult=2.0,
+)
+VENOM_QUEEN_STATS = dict(
+    hp=400, attack=25, defense=8, speed=1.5, xp=250,
+    poison_spray_range=120, constrict_range=50, constrict_dps=10,
+    summon_cooldown=15.0, summon_count_min=2, summon_count_max=3,
+)
+
 XP_BASE = 100
 XP_EXPONENT = 1.5
 

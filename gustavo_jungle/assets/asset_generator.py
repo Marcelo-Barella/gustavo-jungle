@@ -214,6 +214,132 @@ class AssetGenerator:
         return _get("gorilla", build)
 
     # ------------------------------------------------------------------
+    # JungleKingLion (Boss) ~72x54
+    # ------------------------------------------------------------------
+
+    def get_jungle_king_sprites(self) -> dict[str, list[pygame.Surface]]:
+        def _base(w=72, h=54, lean=False, pound=False):
+            surf = pygame.Surface((w, h), pygame.SRCALPHA)
+            body = (230, 190, 80)
+            mane = (180, 130, 40)
+            crown = GOLDEN
+            pygame.draw.ellipse(surf, body, (10, 16, 52, 32))
+            pygame.draw.circle(surf, mane, (18, 22), 16)
+            pygame.draw.circle(surf, body, (16, 20), 10)
+            pygame.draw.circle(surf, BLACK, (12, 18), 3)
+            pygame.draw.circle(surf, BLACK, (20, 18), 3)
+            pygame.draw.polygon(surf, crown, [(10, 8), (14, 0), (18, 8)])
+            pygame.draw.polygon(surf, crown, [(16, 6), (20, 0), (24, 6)])
+            pygame.draw.polygon(surf, crown, [(22, 8), (26, 0), (30, 8)])
+            pygame.draw.line(surf, body, (58, 30), (68, 20), 3)
+            pygame.draw.line(surf, body, (68, 20), (70, 22), 2)
+            if lean:
+                pygame.draw.ellipse(surf, body, (4, 18, 56, 30))
+            if pound:
+                pygame.draw.circle(surf, (255, 200, 50, 128), (36, 44), 18, 3)
+            return surf
+
+        def build():
+            idle = _base()
+            w1 = _base()
+            w2 = pygame.Surface((72, 54), pygame.SRCALPHA)
+            w2.blit(_base(), (0, 1))
+            charge = _base(lean=True)
+            pound = _base(pound=True)
+            hurt = _tint_red(idle)
+            return {
+                "idle": [idle],
+                "walk": [w1, w2],
+                "charge": [charge],
+                "ground_pound": [pound],
+                "hurt": [hurt],
+            }
+        return _get("jungle_king", build)
+
+    # ------------------------------------------------------------------
+    # AncientGorilla (Boss) ~80x72
+    # ------------------------------------------------------------------
+
+    def get_ancient_gorilla_sprites(self) -> dict[str, list[pygame.Surface]]:
+        def _base(w=80, h=72, arms_up=False, arm_offset=0):
+            surf = pygame.Surface((w, h), pygame.SRCALPHA)
+            body = (40, 28, 20)
+            scar = (180, 60, 60)
+            pygame.draw.ellipse(surf, body, (12, 18, 56, 48))
+            pygame.draw.circle(surf, body, (40, 14), 14)
+            pygame.draw.circle(surf, BLACK, (34, 12), 3)
+            pygame.draw.circle(surf, BLACK, (46, 12), 3)
+            pygame.draw.line(surf, scar, (30, 8), (38, 16), 2)
+            pygame.draw.line(surf, scar, (44, 6), (50, 14), 2)
+            if arms_up:
+                pygame.draw.line(surf, body, (12, 28), (2, 6), 8)
+                pygame.draw.line(surf, body, (68, 28), (78, 6), 8)
+            else:
+                ay = 28 + arm_offset
+                pygame.draw.line(surf, body, (12, ay), (2, ay + 24), 8)
+                pygame.draw.line(surf, body, (68, ay), (78, ay + 24), 8)
+            return surf
+
+        def build():
+            idle = _base()
+            w1 = _base(arm_offset=0)
+            w2 = _base(arm_offset=4)
+            slam = _base(arms_up=True)
+            hurt = _tint_red(idle)
+            return {
+                "idle": [idle],
+                "walk": [w1, w2],
+                "slam": [slam],
+                "hurt": [hurt],
+            }
+        return _get("ancient_gorilla", build)
+
+    # ------------------------------------------------------------------
+    # VenomQueen (Boss) ~60x30
+    # ------------------------------------------------------------------
+
+    def get_venom_queen_sprites(self) -> dict[str, list[pygame.Surface]]:
+        def _body(w=60, h=30, phase=0.0, spray=False):
+            surf = pygame.Surface((w, h), pygame.SRCALPHA)
+            body_color = (80, 30, 120)
+            belly = (50, 180, 80)
+            pts = []
+            for x in range(8, 50):
+                y = int(h // 2 + math.sin(x * 0.4 + phase) * 5)
+                pts.append((x, y))
+            if len(pts) > 1:
+                pygame.draw.lines(surf, body_color, False, pts, 5)
+                pygame.draw.lines(surf, belly, False, pts, 2)
+            head_x = 8
+            pygame.draw.ellipse(surf, body_color, (head_x - 8, h // 2 - 10, 16, 20))
+            pygame.draw.circle(surf, (220, 200, 0), (head_x - 4, h // 2 - 4), 2)
+            pygame.draw.circle(surf, (220, 200, 0), (head_x - 4, h // 2 + 4), 2)
+            tongue_x = head_x - 8
+            pygame.draw.line(surf, RED, (tongue_x, h // 2), (tongue_x - 6, h // 2 - 2), 1)
+            pygame.draw.line(surf, RED, (tongue_x, h // 2), (tongue_x - 6, h // 2 + 2), 1)
+            if spray:
+                for i in range(5):
+                    angle = math.radians(-30 + i * 15)
+                    ex = int(tongue_x - 12 * math.cos(angle))
+                    ey = int(h // 2 + 12 * math.sin(angle))
+                    pygame.draw.circle(surf, (100, 220, 50), (ex, ey), 2)
+            return surf
+
+        def build():
+            idle = _body(phase=0.0)
+            s1 = _body(phase=0.0)
+            s2 = _body(phase=math.pi)
+            spray = _body(spray=True)
+            hurt = _tint_red(idle)
+            return {
+                "idle": [idle],
+                "slither": [s1, s2],
+                "spray": [spray],
+                "hurt": [hurt],
+            }
+        return _get("venom_queen", build)
+
+    # ------------------------------------------------------------------
     # Tiles (TILE_SIZE x TILE_SIZE)
     # ------------------------------------------------------------------
 
