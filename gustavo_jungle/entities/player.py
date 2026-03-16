@@ -3,6 +3,7 @@ from settings import (
     BASE_HP, BASE_ATTACK, BASE_DEFENSE, BASE_SPEED, BASE_LUCK,
     STAT_GROWTH_RATE, XP_BASE, XP_EXPONENT, MAX_LEVEL,
     MAP_WIDTH, MAP_HEIGHT, INVINCIBILITY_DURATION,
+    WATER_SPEED_MULT, CAMPFIRE_HEAL_RATE,
 )
 
 
@@ -67,11 +68,46 @@ class Player(pygame.sprite.Sprite):
         if diff.length_squared() > 0:
             self.facing_direction = diff.normalize()
 
-    def update(self, dt: float):
-        self.pos += self.vel * dt * 60
+    def _get_foot_rect(self):
+        return pygame.Rect(self.pos.x - 8, self.pos.y + 4, 16, 16)
+
+    def update(self, dt: float, collision_rects=None, water_rects=None,
+               campfire_rects=None):
+        speed_mult = 1.0
+        if water_rects:
+            foot = self._get_foot_rect()
+            for wr in water_rects:
+                if foot.colliderect(wr):
+                    speed_mult = WATER_SPEED_MULT
+                    break
+
+        old_x = self.pos.x
+        self.pos.x += self.vel.x * dt * 60 * speed_mult
+        if collision_rects:
+            foot = self._get_foot_rect()
+            for cr in collision_rects:
+                if foot.colliderect(cr):
+                    self.pos.x = old_x
+                    break
+
+        old_y = self.pos.y
+        self.pos.y += self.vel.y * dt * 60 * speed_mult
+        if collision_rects:
+            foot = self._get_foot_rect()
+            for cr in collision_rects:
+                if foot.colliderect(cr):
+                    self.pos.y = old_y
+                    break
 
         self.pos.x = max(16, min(MAP_WIDTH - 16, self.pos.x))
         self.pos.y = max(20, min(MAP_HEIGHT - 20, self.pos.y))
+
+        if campfire_rects:
+            foot = self._get_foot_rect()
+            for cfr in campfire_rects:
+                if foot.colliderect(cfr):
+                    self.hp = min(self.max_hp, self.hp + CAMPFIRE_HEAL_RATE * dt)
+                    break
 
         if self.is_invincible:
             self.invincibility_timer -= dt

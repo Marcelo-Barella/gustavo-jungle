@@ -1,9 +1,13 @@
 import sys
 import random
 import pygame
-from settings import SCREEN_WIDTH, SCREEN_HEIGHT, FPS, MAP_WIDTH, MAP_HEIGHT
+from settings import (
+    SCREEN_WIDTH, SCREEN_HEIGHT, FPS, MAP_WIDTH, MAP_HEIGHT,
+    TALL_GRASS_DETECTION_MULT,
+)
 from assets.asset_generator import AssetGenerator
 from entities.player import Player
+from entities.treasure_chest import TreasureChest
 from systems.map_manager import MapManager, Camera
 from systems.combat import CombatSystem, DamageText
 from systems.leveling import LevelingSystem
@@ -38,6 +42,11 @@ class Game:
         self.player = Player(spawn, self.asset_gen)
         self.player.unlocked_skills = ["vine_whip", "rock_throw", "jungle_roar", "dash"]
 
+        self.collision_rects = self.map_manager.get_collision_rects()
+        self.water_rects = self.map_manager.get_water_rects()
+        self.tall_grass_rects = self.map_manager.get_tall_grass_rects()
+        self.campfire_rects = self.map_manager.get_campfire_rects()
+
         self.all_sprites = pygame.sprite.Group()
         self.enemies = pygame.sprite.Group()
         self.projectiles = pygame.sprite.Group()
@@ -45,8 +54,10 @@ class Game:
         self.particles = pygame.sprite.Group()
         self.powerup_drops = pygame.sprite.Group()
         self.damage_texts = pygame.sprite.Group()
+        self.treasure_chests = pygame.sprite.Group()
 
         self.all_sprites.add(self.player)
+        self._spawn_treasure_chests()
 
         self.combat_system = CombatSystem()
         self.leveling_system = LevelingSystem()
@@ -81,6 +92,8 @@ class Game:
                 if event.key == pygame.K_ESCAPE:
                     self.running = False
                 if self.game_state == "playing":
+                    if event.key == pygame.K_e:
+                        self._try_open_chest()
                     skill_name = SKILL_KEYS.get(event.key)
                     if skill_name:
                         hits = self.skill_system.use_skill(
@@ -111,11 +124,14 @@ class Game:
         dash_hits = self.skill_system.update(dt, self.player, self.enemies)
         self._spawn_damage_texts(dash_hits)
 
-        self.player.update(dt)
+        self.player.update(dt, self.collision_rects, self.water_rects,
+                           self.campfire_rects)
         self.camera.update(self.player.pos)
 
+        self._apply_tall_grass_detection()
         for enemy in self.enemies:
-            enemy.update(dt, self.player.pos)
+            enemy.update(dt, self.player.pos, self.collision_rects)
+        self._restore_detection_ranges()
 
         for proj in self.projectiles:
             proj.update(dt)
@@ -162,6 +178,57 @@ class Game:
             dt_sprite = DamageText(enemy.pos.copy(), damage, is_crit)
             self.damage_texts.add(dt_sprite)
 
+    def _spawn_treasure_chests(self):
+        grass_positions = self.map_manager.get_grass_positions()
+        center = pygame.math.Vector2(MAP_WIDTH // 2, MAP_HEIGHT // 2)
+        candidates = [
+            p for p in grass_positions
+            if (pygame.math.Vector2(p) - center).length() > 300
+        ]
+        random.shuffle(candidates)
+        count = min(random.randint(5, 8), len(candidates))
+        for i in range(count):
+            chest = TreasureChest(candidates[i], self.asset_gen)
+            self.treasure_chests.add(chest)
+
+    def _try_open_chest(self):
+        for chest in self.treasure_chests:
+            reward = chest.try_open(self.player.pos)
+            if reward is None:
+                continue
+            if reward == "xp_burst":
+                xp = chest.xp_value
+                leveled = self.player.gain_xp(xp)
+                if leveled:
+                    self._auto_level_up()
+            elif reward == "full_heal":
+                self.player.hp = self.player.max_hp
+            elif reward == "powerup":
+                kind = random.choice(["speed", "regen", "double_xp"])
+                self.powerup_system.activate(kind, self.player)
+            break
+
+    def _apply_tall_grass_detection(self):
+        self._saved_detection = {}
+        player_foot = self.player._get_foot_rect()
+        in_tall_grass = False
+        for tgr in self.tall_grass_rects:
+            if player_foot.colliderect(tgr):
+                in_tall_grass = True
+                break
+        if in_tall_grass:
+            for enemy in self.enemies:
+                self._saved_detection[id(enemy)] = enemy.detection_range
+                enemy.detection_range = int(
+                    enemy.detection_range * TALL_GRASS_DETECTION_MULT
+                )
+
+    def _restore_detection_ranges(self):
+        for enemy in self.enemies:
+            eid = id(enemy)
+            if eid in self._saved_detection:
+                enemy.detection_range = self._saved_detection[eid]
+
     def _auto_level_up(self):
         stat = random.choice(["hp", "attack", "defense", "speed", "luck"])
         if stat == "hp":
@@ -191,6 +258,8 @@ class Game:
             sprites_to_draw.append(o)
         for pu in self.powerup_drops:
             sprites_to_draw.append(pu)
+        for chest in self.treasure_chests:
+            sprites_to_draw.append(chest)
 
         sprites_to_draw.sort(key=lambda s: s.pos.y if hasattr(s, 'pos') else s.rect.centery)
 

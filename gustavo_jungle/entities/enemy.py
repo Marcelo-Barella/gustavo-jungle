@@ -29,7 +29,32 @@ class Enemy(pygame.sprite.Sprite):
     def is_alive(self) -> bool:
         return self.hp > 0 and self.state != "dead"
 
-    def update(self, dt: float, player_pos: pygame.math.Vector2):
+    def _resolve_tree_collision(self, collision_rects, old_pos):
+        if not collision_rects:
+            return
+        body = pygame.Rect(self.pos.x - 10, self.pos.y - 10, 20, 20)
+        for cr in collision_rects:
+            if body.colliderect(cr):
+                move_dir = self.pos - old_pos
+                if move_dir.length_squared() > 0:
+                    perp = pygame.math.Vector2(-move_dir.y, move_dir.x)
+                    test_pos = old_pos + perp.normalize() * move_dir.length()
+                    test_body = pygame.Rect(test_pos.x - 10, test_pos.y - 10, 20, 20)
+                    blocked = False
+                    for cr2 in collision_rects:
+                        if test_body.colliderect(cr2):
+                            blocked = True
+                            break
+                    if not blocked:
+                        self.pos.x = test_pos.x
+                        self.pos.y = test_pos.y
+                        return
+                self.pos.x = old_pos.x
+                self.pos.y = old_pos.y
+                return
+
+    def update(self, dt: float, player_pos: pygame.math.Vector2,
+               collision_rects=None):
         if not self.is_alive:
             return
 
@@ -51,7 +76,9 @@ class Enemy(pygame.sprite.Sprite):
             self.state = "idle"
             self.vel = pygame.math.Vector2(0, 0)
 
+        old_pos = pygame.math.Vector2(self.pos)
         self.pos += self.vel * dt * 60
+        self._resolve_tree_collision(collision_rects, old_pos)
         self.pos.x = max(0, min(MAP_WIDTH, self.pos.x))
         self.pos.y = max(0, min(MAP_HEIGHT, self.pos.y))
 
@@ -106,12 +133,14 @@ class Panther(Enemy):
         self.lunging = False
         self.lunge_timer = 0.0
 
-    def update(self, dt: float, player_pos: pygame.math.Vector2):
+    def update(self, dt: float, player_pos: pygame.math.Vector2,
+               collision_rects=None):
         if not self.is_alive:
             return
         self.lunge_cooldown = max(0.0, self.lunge_cooldown - dt)
         self.attack_cooldown = max(0.0, self.attack_cooldown - dt)
 
+        old_pos = pygame.math.Vector2(self.pos)
         if self.lunging:
             self.lunge_timer -= dt
             if self.lunge_timer <= 0:
@@ -137,6 +166,7 @@ class Panther(Enemy):
                 self.state = "idle"
                 self.vel = pygame.math.Vector2(0, 0)
 
+        self._resolve_tree_collision(collision_rects, old_pos)
         self.pos.x = max(0, min(MAP_WIDTH, self.pos.x))
         self.pos.y = max(0, min(MAP_HEIGHT, self.pos.y))
         self._animate(dt)
@@ -168,12 +198,14 @@ class Lion(Enemy):
         self.charging = False
         self.charge_timer = 0.0
 
-    def update(self, dt: float, player_pos: pygame.math.Vector2):
+    def update(self, dt: float, player_pos: pygame.math.Vector2,
+               collision_rects=None):
         if not self.is_alive:
             return
         self.charge_cooldown = max(0.0, self.charge_cooldown - dt)
         self.attack_cooldown = max(0.0, self.attack_cooldown - dt)
 
+        old_pos = pygame.math.Vector2(self.pos)
         if self.charging:
             self.charge_timer -= dt
             if self.charge_timer <= 0:
@@ -199,6 +231,7 @@ class Lion(Enemy):
                 self.state = "idle"
                 self.vel = pygame.math.Vector2(0, 0)
 
+        self._resolve_tree_collision(collision_rects, old_pos)
         self.pos.x = max(0, min(MAP_WIDTH, self.pos.x))
         self.pos.y = max(0, min(MAP_HEIGHT, self.pos.y))
         self._animate(dt)
@@ -219,12 +252,14 @@ class Snake(Enemy):
         self.poison_dps = SNAKE_STATS.get("poison_dps", 2)
         self.poison_duration = SNAKE_STATS.get("poison_duration", 3.0)
 
-    def update(self, dt: float, player_pos: pygame.math.Vector2):
+    def update(self, dt: float, player_pos: pygame.math.Vector2,
+               collision_rects=None):
         if not self.is_alive:
             return
         self.bite_cooldown = max(0.0, self.bite_cooldown - dt)
         self.attack_cooldown = max(0.0, self.attack_cooldown - dt)
 
+        old_pos = pygame.math.Vector2(self.pos)
         diff = player_pos - self.pos
         dist = diff.length()
         if self.state == "hurt" and self.state_timer > 0:
@@ -241,6 +276,7 @@ class Snake(Enemy):
             self.state = "idle"
             self.vel = pygame.math.Vector2(0, 0)
 
+        self._resolve_tree_collision(collision_rects, old_pos)
         self.pos.x = max(0, min(MAP_WIDTH, self.pos.x))
         self.pos.y = max(0, min(MAP_HEIGHT, self.pos.y))
         self._animate(dt)
@@ -272,12 +308,14 @@ class Gorilla(Enemy):
         self.slam_timer = 0.0
         self.slam_windup = 0.0
 
-    def update(self, dt: float, player_pos: pygame.math.Vector2):
+    def update(self, dt: float, player_pos: pygame.math.Vector2,
+               collision_rects=None):
         if not self.is_alive:
             return
         self.slam_cooldown = max(0.0, self.slam_cooldown - dt)
         self.attack_cooldown = max(0.0, self.attack_cooldown - dt)
 
+        old_pos = pygame.math.Vector2(self.pos)
         if self.slamming:
             self.slam_timer -= dt
             if self.slam_timer <= 0:
@@ -302,6 +340,7 @@ class Gorilla(Enemy):
                 self.state = "idle"
                 self.vel = pygame.math.Vector2(0, 0)
 
+        self._resolve_tree_collision(collision_rects, old_pos)
         self.pos.x = max(0, min(MAP_WIDTH, self.pos.x))
         self.pos.y = max(0, min(MAP_HEIGHT, self.pos.y))
         self._animate(dt)

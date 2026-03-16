@@ -3,6 +3,7 @@ import pygame
 from settings import (
     TILE_SIZE, JUNGLE_GREEN, DARK_GREEN, BROWN, GOLDEN,
     RIVER_BLUE, WHITE, BLACK, TAN, LIGHT_GREEN, RED,
+    SKY_BLUE,
 )
 
 _cache: dict[str, list[pygame.Surface]] = {}
@@ -255,6 +256,48 @@ class AssetGenerator:
                     x = (i * 13 + 8) % (TILE_SIZE - 8) + 4
                     y = (i * 17 + 6) % (TILE_SIZE - 8) + 4
                     pygame.draw.circle(s, DARK_GREEN, (x, y), 4)
+            elif tile_type == "ruins":
+                s.fill(JUNGLE_GREEN)
+                gray = (140, 140, 140)
+                dark_gray = (100, 100, 100)
+                pygame.draw.rect(s, gray, (8, 8, 24, 20))
+                pygame.draw.rect(s, gray, (36, 16, 20, 24))
+                pygame.draw.line(s, dark_gray, (12, 12), (28, 18), 1)
+                pygame.draw.line(s, dark_gray, (16, 24), (24, 14), 1)
+                pygame.draw.line(s, dark_gray, (40, 20), (50, 34), 1)
+                pygame.draw.rect(s, dark_gray, (10, 10, 6, 4), 1)
+                pygame.draw.rect(s, dark_gray, (38, 28, 8, 3), 1)
+            elif tile_type == "campfire":
+                s.fill((30, 30, 20))
+                pygame.draw.circle(s, (60, 40, 20), (TILE_SIZE // 2, TILE_SIZE // 2), 18)
+                for i in range(6):
+                    angle = math.radians(i * 60)
+                    sx = int(TILE_SIZE // 2 + 14 * math.cos(angle))
+                    sy = int(TILE_SIZE // 2 + 14 * math.sin(angle))
+                    pygame.draw.circle(s, (100, 80, 60), (sx, sy), 3)
+                pygame.draw.circle(s, (255, 160, 40), (TILE_SIZE // 2, TILE_SIZE // 2), 10)
+                pygame.draw.circle(s, (255, 220, 80), (TILE_SIZE // 2, TILE_SIZE // 2), 6)
+                pygame.draw.circle(s, (255, 255, 180), (TILE_SIZE // 2, TILE_SIZE // 2 - 2), 3)
+            elif tile_type == "tall_grass":
+                s.fill((20, 100, 20))
+                for i in range(12):
+                    bx = (i * 11 + 3) % (TILE_SIZE - 4) + 2
+                    by = TILE_SIZE - 8
+                    pygame.draw.line(s, (15, 80, 15), (bx, by + 8), (bx + 2, by - 16 - (i % 3) * 6), 2)
+                    pygame.draw.line(s, (25, 110, 25), (bx + 4, by + 8), (bx + 6, by - 12 - (i % 4) * 4), 2)
+            elif tile_type == "flowers":
+                s.fill(JUNGLE_GREEN)
+                colors = [(255, 100, 100), (255, 200, 50), (200, 100, 255), (255, 150, 200)]
+                for i in range(6):
+                    fx = (i * 19 + 7) % (TILE_SIZE - 8) + 4
+                    fy = (i * 13 + 11) % (TILE_SIZE - 8) + 4
+                    pygame.draw.circle(s, colors[i % len(colors)], (fx, fy), 3)
+                    pygame.draw.circle(s, (255, 255, 200), (fx, fy), 1)
+            elif tile_type == "rocks":
+                s.fill(JUNGLE_GREEN)
+                pygame.draw.ellipse(s, (160, 160, 155), (12, 18, 18, 14))
+                pygame.draw.ellipse(s, (130, 130, 125), (30, 26, 14, 10))
+                pygame.draw.ellipse(s, (145, 145, 140), (8, 36, 12, 8))
             else:
                 s.fill(JUNGLE_GREEN)
             return [s]
@@ -291,6 +334,27 @@ class AssetGenerator:
                 pygame.draw.polygon(s, GOLDEN, pts)
             return [s]
         return _get(key, build)[0]
+
+    def get_chest_sprites(self) -> dict[str, pygame.Surface]:
+        def build():
+            closed = pygame.Surface((28, 24), pygame.SRCALPHA)
+            pygame.draw.rect(closed, (139, 90, 43), (2, 8, 24, 14))
+            pygame.draw.rect(closed, (110, 70, 30), (2, 8, 24, 14), 2)
+            pygame.draw.rect(closed, (160, 100, 50), (2, 4, 24, 8), border_radius=3)
+            pygame.draw.rect(closed, (110, 70, 30), (2, 4, 24, 8), 2, border_radius=3)
+            pygame.draw.rect(closed, GOLDEN, (11, 10, 6, 8))
+            pygame.draw.rect(closed, (200, 170, 0), (11, 10, 6, 8), 1)
+
+            opened = pygame.Surface((28, 28), pygame.SRCALPHA)
+            pygame.draw.rect(opened, (139, 90, 43), (2, 14, 24, 12))
+            pygame.draw.rect(opened, (110, 70, 30), (2, 14, 24, 12), 2)
+            pygame.draw.rect(opened, (160, 100, 50), (0, 2, 28, 10), border_radius=3)
+            pygame.draw.rect(opened, (110, 70, 30), (0, 2, 28, 10), 2, border_radius=3)
+            pygame.draw.rect(opened, GOLDEN, (11, 16, 6, 6))
+            pygame.draw.circle(opened, GOLDEN, (14, 10), 3)
+            return [closed, opened]
+        sprites = _get("chest", build)
+        return {"closed": sprites[0], "open": sprites[1]}
 
     def get_skill_icon(self, skill: str) -> pygame.Surface:
         key = f"skill_{skill}"
