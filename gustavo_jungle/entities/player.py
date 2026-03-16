@@ -36,6 +36,8 @@ class Player(pygame.sprite.Sprite):
 
         self.unlocked_skills: list[str] = []
         self.skill_cooldowns: dict[str, float] = {}
+        self.shield_timer = 0.0
+        self.damage_reduction = 0.0
 
         self.image = self.sprites["idle"][0]
         self.rect = self.image.get_rect(center=(int(self.pos.x), int(self.pos.y)))
@@ -78,6 +80,12 @@ class Player(pygame.sprite.Sprite):
             if self.invincibility_timer <= 0:
                 self.is_invincible = False
 
+        if self.shield_timer > 0:
+            self.shield_timer -= dt
+            if self.shield_timer <= 0:
+                self.shield_timer = 0.0
+                self.damage_reduction = 0.0
+
         self.animation_timer += dt
         if self.animation_timer >= 0.15:
             self.animation_timer = 0.0
@@ -104,6 +112,8 @@ class Player(pygame.sprite.Sprite):
         if self.is_invincible:
             return 0
         actual = max(1, amount - self.defense)
+        if self.damage_reduction > 0:
+            actual = max(1, int(actual * (1 - self.damage_reduction)))
         self.hp -= actual
         self.is_invincible = True
         self.invincibility_timer = INVINCIBILITY_DURATION
