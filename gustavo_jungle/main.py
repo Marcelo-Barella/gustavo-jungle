@@ -59,6 +59,7 @@ class Game:
         self.game_state = "playing"
         self.running = True
         self.xp_multiplier = 1.0
+        self._dt = 0.0
 
         self.wave_spawner.start()
 
@@ -66,6 +67,7 @@ class Game:
         while self.running:
             dt = self.clock.tick(FPS) / 1000.0
             dt = min(dt, 0.05)
+            self._dt = dt
             self.handle_events()
             if self.game_state == "playing":
                 self.update(dt)
@@ -147,6 +149,7 @@ class Game:
         for enemy in dead_enemies:
             self.leveling_system.on_enemy_killed(enemy, self.player, self.xp_orbs, self.asset_gen)
             self.powerup_system.try_drop(enemy.pos, self.asset_gen, self.powerup_drops)
+            self.hud.register_kill()
             self.enemies.remove(enemy)
 
         self.xp_multiplier = self.powerup_system.update(dt, self.player)
@@ -209,7 +212,9 @@ class Game:
             if hasattr(dt_sprite, 'draw'):
                 dt_sprite.draw(self.screen, offset)
 
-        self.hud.draw(self.screen, self.player, self.wave_spawner, self.powerup_system)
+        self.hud.draw(self.screen, self.player, self.wave_spawner, self.powerup_system,
+                      enemies=self.enemies, asset_gen=self.asset_gen,
+                      map_manager=self.map_manager, camera_offset=offset, dt=self._dt)
 
         if self.game_state == "game_over":
             self._draw_game_over()

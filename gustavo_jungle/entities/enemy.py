@@ -22,6 +22,7 @@ class Enemy(pygame.sprite.Sprite):
         self.sprites: dict[str, list[pygame.Surface]] = {}
         self.animation_frame = 0
         self.animation_timer = 0.0
+        self.is_boss = False
         self.image = pygame.Surface((20, 20), pygame.SRCALPHA)
         self.rect = self.image.get_rect(center=(int(self.pos.x), int(self.pos.y)))
 
@@ -87,9 +88,20 @@ class Enemy(pygame.sprite.Sprite):
     def draw(self, surface: pygame.Surface, camera_offset: tuple[float, float]):
         if self.state == "dead":
             return
-        surface.blit(self.image,
-                      (self.pos.x - camera_offset[0] - self.image.get_width() // 2,
-                       self.pos.y - camera_offset[1] - self.image.get_height() // 2))
+        sx = self.pos.x - camera_offset[0] - self.image.get_width() // 2
+        sy = self.pos.y - camera_offset[1] - self.image.get_height() // 2
+        surface.blit(self.image, (sx, sy))
+
+        if self.hp < self.max_hp:
+            bar_w = self.image.get_width()
+            bar_h = 4
+            bar_x = int(sx)
+            bar_y = int(sy) - 5 - bar_h
+            hp_ratio = max(0, self.hp / self.max_hp)
+            fill_color = (255, 140, 0) if self.is_boss else (220, 20, 20)
+            pygame.draw.rect(surface, (20, 20, 20), (bar_x - 1, bar_y - 1, bar_w + 2, bar_h + 2))
+            pygame.draw.rect(surface, (60, 60, 60), (bar_x, bar_y, bar_w, bar_h))
+            pygame.draw.rect(surface, fill_color, (bar_x, bar_y, int(bar_w * hp_ratio), bar_h))
 
 
 class Panther(Enemy):
@@ -264,6 +276,7 @@ class Gorilla(Enemy):
         self.sprites = asset_gen.get_gorilla_sprites()
         self.image = self.sprites["idle"][0]
         self.rect = self.image.get_rect(center=(int(self.pos.x), int(self.pos.y)))
+        self.is_boss = True
         self.detection_range = 200
         self.slam_radius = GORILLA_STATS.get("slam_radius", 80)
         self.attack_range = self.slam_radius
