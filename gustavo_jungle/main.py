@@ -11,6 +11,7 @@ from systems.spawner import WaveSpawner
 from systems.skills import SkillSystem
 from systems.powerups import PowerupSystem
 from systems.particles import ParticleSystem
+from systems.sound_manager import SoundManager
 from ui.hud import HUD
 
 
@@ -55,12 +56,15 @@ class Game:
         self.powerup_system = PowerupSystem()
         self.particle_system = ParticleSystem()
 
+        self.sound_manager = SoundManager()
+
         self.hud = HUD()
         self.game_state = "playing"
         self.running = True
         self.xp_multiplier = 1.0
 
         self.wave_spawner.start()
+        self.sound_manager.play_music("jungle")
 
     def run(self):
         while self.running:
@@ -87,6 +91,8 @@ class Game:
                             skill_name, self.player, self.enemies,
                             self.projectiles, self.particles, self.asset_gen
                         )
+                        if hits or skill_name in ("rock_throw", "dash"):
+                            self.sound_manager.play_sfx("skill_" + skill_name)
                         self._spawn_damage_texts(hits)
 
         if self.game_state == "playing":
@@ -95,20 +101,30 @@ class Game:
             self.player.handle_input(keys, mouse_pos, self.camera.get_offset())
 
     def update(self, dt: float):
+        prev_wave = self.wave_spawner.current_wave_number
         self.wave_spawner.update(dt, self.player, self.enemies, self.asset_gen)
+        if self.wave_spawner.current_wave_number > prev_wave:
+            self.sound_manager.play_sfx("wave_start")
 
         melee_hits = self.combat_system.process_player_attack(self.player, self.enemies, dt)
+        if melee_hits:
+            self.sound_manager.play_sfx("melee_hit")
         self._spawn_damage_texts(melee_hits)
 
         enemy_damages = self.combat_system.process_enemy_attacks(self.enemies, self.player, dt)
         for dmg in enemy_damages:
+            self.sound_manager.play_sfx("player_hurt")
             dt_sprite = DamageText(self.player.pos.copy(), dmg, False)
             self.damage_texts.add(dt_sprite)
 
         proj_hits = self.combat_system.check_projectile_hits(self.projectiles, self.enemies)
+        if proj_hits:
+            self.sound_manager.play_sfx("enemy_hit")
         self._spawn_damage_texts(proj_hits)
 
         dash_hits = self.skill_system.update(dt, self.player, self.enemies)
+        if dash_hits:
+            self.sound_manager.play_sfx("enemy_hit")
         self._spawn_damage_texts(dash_hits)
 
         self.player.update(dt)
@@ -123,11 +139,13 @@ class Game:
         for orb in list(self.xp_orbs):
             orb.update(dt, self.player.pos)
             if orb.collected:
+                self.sound_manager.play_sfx("xp_collect")
                 xp_amount = int(orb.value * self.xp_multiplier)
                 self.leveling_system.total_xp_earned += xp_amount
                 leveled = self.player.gain_xp(xp_amount)
                 orb.kill()
                 if leveled:
+                    self.sound_manager.play_sfx("level_up")
                     self._auto_level_up()
 
         for p in self.particles:
@@ -137,6 +155,7 @@ class Game:
             pu.update(dt)
             dist = (pu.pos - self.player.pos).length()
             if dist < 25:
+                self.sound_manager.play_sfx("powerup_collect")
                 self.powerup_system.activate(pu.kind, self.player)
                 pu.kill()
 
@@ -145,6 +164,7 @@ class Game:
 
         dead_enemies = [e for e in self.enemies if not e.is_alive]
         for enemy in dead_enemies:
+            self.sound_manager.play_sfx("enemy_death")
             self.leveling_system.on_enemy_killed(enemy, self.player, self.xp_orbs, self.asset_gen)
             self.powerup_system.try_drop(enemy.pos, self.asset_gen, self.powerup_drops)
             self.enemies.remove(enemy)
@@ -155,6 +175,8 @@ class Game:
 
         if self.player.hp <= 0:
             self.game_state = "game_over"
+            self.sound_manager.play_sfx("game_over")
+            self.sound_manager.stop_music()
 
     def _spawn_damage_texts(self, hits: list[tuple]):
         for hit in hits:
