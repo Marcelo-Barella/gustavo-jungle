@@ -10,8 +10,17 @@ class Camera:
 
     def __init__(self):
         self.offset = pygame.math.Vector2(0, 0)
+        self.shake_timer = 0.0
+        self.shake_intensity = 0.0
+        self.shake_offset = pygame.math.Vector2(0, 0)
+        self._shake_duration = 0.0
 
-    def update(self, target_pos: pygame.math.Vector2):
+    def shake(self, intensity: float = 5.0, duration: float = 0.3):
+        self.shake_intensity = intensity
+        self.shake_timer = duration
+        self._shake_duration = duration
+
+    def update(self, target_pos: pygame.math.Vector2, dt: float = 0.0):
         desired = pygame.math.Vector2(
             target_pos.x - SCREEN_WIDTH // 2,
             target_pos.y - SCREEN_HEIGHT // 2,
@@ -20,8 +29,18 @@ class Camera:
         self.offset.x = max(0, min(MAP_WIDTH - SCREEN_WIDTH, self.offset.x))
         self.offset.y = max(0, min(MAP_HEIGHT - SCREEN_HEIGHT, self.offset.y))
 
+        if self.shake_timer > 0:
+            self.shake_timer -= dt
+            decay = self.shake_timer / self._shake_duration if self._shake_duration > 0 else 0
+            intensity = self.shake_intensity * decay
+            self.shake_offset.x = random.uniform(-intensity, intensity)
+            self.shake_offset.y = random.uniform(-intensity, intensity)
+        else:
+            self.shake_offset.x = 0
+            self.shake_offset.y = 0
+
     def get_offset(self) -> tuple[float, float]:
-        return (self.offset.x, self.offset.y)
+        return (self.offset.x + self.shake_offset.x, self.offset.y + self.shake_offset.y)
 
 
 class MapManager:
