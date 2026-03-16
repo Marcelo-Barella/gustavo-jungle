@@ -72,3 +72,9 @@ SCREEN_SHAKE_DURATION = 0.3
 
 DAMAGE_TEXT_DURATION = 0.8
 DAMAGE_TEXT_RISE_SPEED = 1.5
+
+DIFFICULTY_MULTIPLIERS = {
+    "easy": {"enemy_hp": 0.7, "enemy_attack": 0.7, "xp_gain": 1.3},
+    "normal": {"enemy_hp": 1.0, "enemy_attack": 1.0, "xp_gain": 1.0},
+    "hard": {"enemy_hp": 1.5, "enemy_attack": 1.3, "xp_gain": 0.8},
+}
