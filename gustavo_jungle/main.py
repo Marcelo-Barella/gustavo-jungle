@@ -11,6 +11,9 @@ from systems.spawner import WaveSpawner
 from systems.skills import SkillSystem
 from systems.powerups import PowerupSystem
 from systems.particles import ParticleSystem
+from systems.status_effects import StatusEffectManager
+from entities.enemy import Parrot, PoisonFrog, Snake
+from entities.projectile import Projectile
 from ui.hud import HUD
 
 
@@ -54,6 +57,7 @@ class Game:
         self.skill_system = SkillSystem()
         self.powerup_system = PowerupSystem()
         self.particle_system = ParticleSystem()
+        self.status_effect_manager = StatusEffectManager()
 
         self.hud = HUD()
         self.game_state = "playing"
@@ -105,8 +109,13 @@ class Game:
             dt_sprite = DamageText(self.player.pos.copy(), dmg, False)
             self.damage_texts.add(dt_sprite)
 
-        proj_hits = self.combat_system.check_projectile_hits(self.projectiles, self.enemies)
+        player_projectiles = pygame.sprite.Group(
+            *[p for p in self.projectiles if not getattr(p, '_from_enemy', False)]
+        )
+        proj_hits = self.combat_system.check_projectile_hits(player_projectiles, self.enemies)
         self._spawn_damage_texts(proj_hits)
+
+        self._check_enemy_projectile_hits()
 
         dash_hits = self.skill_system.update(dt, self.player, self.enemies)
         self._spawn_damage_texts(dash_hits)
@@ -116,6 +125,18 @@ class Game:
 
         for enemy in self.enemies:
             enemy.update(dt, self.player.pos)
+            if isinstance(enemy, Parrot) and enemy.pending_projectile is not None:
+                pd = enemy.pending_projectile
+                proj = Projectile(
+                    pd["pos"], pd["direction"], pd["speed"],
+                    pd["damage"], pd["lifetime"], pd["color"], pd["size"],
+                )
+                proj._from_enemy = True
+                self.projectiles.add(proj)
+                enemy.pending_projectile = None
+
+        self._handle_group_aggro()
+        self._handle_contact_effects(dt)
 
         for proj in self.projectiles:
             proj.update(dt)
@@ -143,8 +164,12 @@ class Game:
         for dt_sprite in self.damage_texts:
             dt_sprite.update(dt)
 
+        all_entities = [self.player] + list(self.enemies)
+        self.status_effect_manager.update(dt, all_entities)
+
         dead_enemies = [e for e in self.enemies if not e.is_alive]
         for enemy in dead_enemies:
+            self.status_effect_manager.clear(enemy)
             self.leveling_system.on_enemy_killed(enemy, self.player, self.xp_orbs, self.asset_gen)
             self.powerup_system.try_drop(enemy.pos, self.asset_gen, self.powerup_drops)
             self.enemies.remove(enemy)
@@ -161,6 +186,51 @@ class Game:
             enemy, damage, is_crit = hit
             dt_sprite = DamageText(enemy.pos.copy(), damage, is_crit)
             self.damage_texts.add(dt_sprite)
+
+    def _handle_group_aggro(self):
+        aware_positions = []
+        for enemy in self.enemies:
+            if not enemy.is_alive:
+                continue
+            if enemy._aware_of_player:
+                aware_positions.append(enemy.pos)
+        for enemy in self.enemies:
+            if not enemy.is_alive or enemy._aware_of_player:
+                continue
+            if not enemy.enable_group_aggro:
+                continue
+            for ap in aware_positions:
+                if (enemy.pos - ap).length() <= 150:
+                    enemy.notify_aggro()
+                    break
+
+    def _handle_contact_effects(self, dt: float):
+        for enemy in self.enemies:
+            if not enemy.is_alive:
+                continue
+            dist = (enemy.pos - self.player.pos).length()
+            if isinstance(enemy, Snake) and enemy.state == "bite" and dist <= enemy.attack_range + 10:
+                self.status_effect_manager.apply(
+                    self.player, "poison", enemy.poison_duration, enemy.poison_dps, source=enemy,
+                )
+            elif isinstance(enemy, PoisonFrog) and enemy.contact_cooldown > 0.9 and dist <= enemy.attack_range + 10:
+                self.status_effect_manager.apply(
+                    self.player, "poison", enemy.poison_duration, enemy.poison_dps, source=enemy,
+                )
+
+    def _check_enemy_projectile_hits(self):
+        hits = []
+        for proj in list(self.projectiles):
+            if not hasattr(proj, '_from_enemy'):
+                continue
+            dist = (proj.pos - self.player.pos).length()
+            if dist < 20:
+                actual = self.player.take_damage(proj.damage)
+                if actual > 0:
+                    dt_sprite = DamageText(self.player.pos.copy(), actual, False)
+                    self.damage_texts.add(dt_sprite)
+                proj.kill()
+        return hits
 
     def _auto_level_up(self):
         stat = random.choice(["hp", "attack", "defense", "speed", "luck"])
@@ -197,6 +267,11 @@ class Game:
         for sprite in sprites_to_draw:
             if hasattr(sprite, 'draw'):
                 sprite.draw(self.screen, offset)
+
+        for e in self.enemies:
+            if e.is_alive:
+                self.status_effect_manager.draw_effects(self.screen, e, offset)
+        self.status_effect_manager.draw_effects(self.screen, self.player, offset)
 
         for p in self.particles:
             if hasattr(p, 'draw'):

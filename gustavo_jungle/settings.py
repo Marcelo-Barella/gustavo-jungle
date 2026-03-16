@@ -32,6 +32,8 @@ PANTHER_STATS = dict(hp=30, attack=8, defense=2, speed=2.5, xp=15, min_level=1)
 LION_STATS = dict(hp=80, attack=20, defense=8, speed=1.2, xp=40, min_level=3)
 SNAKE_STATS = dict(hp=20, attack=5, defense=1, speed=2.0, xp=10, min_level=2, poison_dps=2, poison_duration=3.0)
 GORILLA_STATS = dict(hp=150, attack=25, defense=12, speed=0.8, xp=80, min_level=5, slam_radius=80)
+PARROT_STATS = dict(hp=25, attack=12, defense=1, speed=1.8, xp=20, min_level=2)
+POISON_FROG_STATS = dict(hp=15, attack=3, defense=0, speed=3.0, xp=12, min_level=4, poison_dps=2, poison_duration=5.0)
 
 XP_BASE = 100
 XP_EXPONENT = 1.5

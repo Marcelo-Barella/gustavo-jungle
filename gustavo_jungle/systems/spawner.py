@@ -2,7 +2,7 @@ import random
 import math
 import pygame
 from settings import WAVE_BASE_ENEMIES, WAVE_DELAY, MAP_WIDTH, MAP_HEIGHT
-from entities.enemy import Panther, Lion, Snake, Gorilla
+from entities.enemy import Panther, Lion, Snake, Gorilla, Parrot, PoisonFrog
 
 
 class WaveSpawner:
@@ -58,6 +58,18 @@ class WaveSpawner:
         for _ in range(gorilla_count):
             pos = self._edge_pos(player.pos)
             to_spawn.append(Gorilla(pos, asset_gen))
+
+        if n >= 3 and player.level >= 2:
+            parrot_count = 1 + (n - 3) // 3
+            for _ in range(parrot_count):
+                pos = self._edge_pos(player.pos)
+                to_spawn.append(Parrot(pos, asset_gen))
+
+        if n >= 5 and player.level >= 4:
+            frog_count = 1 + (n - 5) // 4
+            for _ in range(frog_count):
+                pos = self._edge_pos(player.pos)
+                to_spawn.append(PoisonFrog(pos, asset_gen))
 
         for e in to_spawn:
             enemy_group.add(e)

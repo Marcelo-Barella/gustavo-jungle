@@ -214,6 +214,83 @@ class AssetGenerator:
         return _get("gorilla", build)
 
     # ------------------------------------------------------------------
+    # Parrot ~24x20
+    # ------------------------------------------------------------------
+
+    def get_parrot_sprites(self) -> dict[str, list[pygame.Surface]]:
+        def _base(w=24, h=20, wing_up=False):
+            surf = pygame.Surface((w, h), pygame.SRCALPHA)
+            body_color = (220, 40, 40)
+            wing_color = (30, 100, 220)
+            tail_color = (34, 180, 34)
+            beak = (255, 200, 0)
+            pygame.draw.ellipse(surf, body_color, (6, 4, 12, 12))
+            pygame.draw.circle(surf, body_color, (10, 6), 5)
+            pygame.draw.circle(surf, BLACK, (8, 5), 1)
+            pygame.draw.polygon(surf, beak, [(4, 6), (4, 8), (1, 7)])
+            if wing_up:
+                pygame.draw.ellipse(surf, wing_color, (10, 1, 10, 6))
+            else:
+                pygame.draw.ellipse(surf, wing_color, (10, 8, 10, 6))
+            pygame.draw.line(surf, tail_color, (18, 10), (23, 14), 2)
+            pygame.draw.line(surf, tail_color, (18, 10), (23, 12), 2)
+            return surf
+
+        def build():
+            idle1 = _base(wing_up=False)
+            idle2 = _base(wing_up=True)
+            fly1 = _base(wing_up=True)
+            fly2 = _base(wing_up=False)
+            attack = _base(wing_up=True)
+            hurt = _tint_red(idle1)
+            return {
+                "idle": [idle1, idle2],
+                "fly": [fly1, fly2],
+                "attack": [attack],
+                "hurt": [hurt],
+            }
+        return _get("parrot", build)
+
+    # ------------------------------------------------------------------
+    # Poison Frog ~16x14
+    # ------------------------------------------------------------------
+
+    def get_poison_frog_sprites(self) -> dict[str, list[pygame.Surface]]:
+        def _base(w=16, h=14, crouched=True):
+            surf = pygame.Surface((w, h), pygame.SRCALPHA)
+            body_color = (255, 120, 0)
+            spot_color = (0, 80, 200)
+            eye_color = (220, 20, 20)
+            if crouched:
+                pygame.draw.ellipse(surf, body_color, (2, 5, 12, 8))
+            else:
+                pygame.draw.ellipse(surf, body_color, (2, 3, 12, 8))
+                pygame.draw.line(surf, body_color, (4, 11), (2, 13), 2)
+                pygame.draw.line(surf, body_color, (12, 11), (14, 13), 2)
+            pygame.draw.circle(surf, spot_color, (5, 7), 2)
+            pygame.draw.circle(surf, spot_color, (10, 8), 2)
+            pygame.draw.circle(surf, spot_color, (7, 5), 1)
+            pygame.draw.circle(surf, eye_color, (4, 4 if not crouched else 5), 2)
+            pygame.draw.circle(surf, eye_color, (10, 4 if not crouched else 5), 2)
+            pygame.draw.circle(surf, BLACK, (4, 4 if not crouched else 5), 1)
+            pygame.draw.circle(surf, BLACK, (10, 4 if not crouched else 5), 1)
+            return surf
+
+        def build():
+            idle = _base(crouched=True)
+            hop1 = _base(crouched=True)
+            hop2 = _base(crouched=False)
+            attack = _base(crouched=False)
+            hurt = _tint_red(idle)
+            return {
+                "idle": [idle],
+                "hop": [hop1, hop2],
+                "attack": [attack],
+                "hurt": [hurt],
+            }
+        return _get("poison_frog", build)
+
+    # ------------------------------------------------------------------
     # Tiles (TILE_SIZE x TILE_SIZE)
     # ------------------------------------------------------------------
 
