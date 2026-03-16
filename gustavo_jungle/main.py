@@ -12,6 +12,7 @@ from systems.skills import SkillSystem
 from systems.powerups import PowerupSystem
 from systems.particles import ParticleSystem
 from ui.hud import HUD
+from ui.level_up_screen import LevelUpScreen
 
 
 SKILL_KEYS = {
@@ -19,6 +20,8 @@ SKILL_KEYS = {
     pygame.K_2: "rock_throw",
     pygame.K_3: "jungle_roar",
     pygame.K_4: "dash",
+    pygame.K_5: "nature_shield",
+    pygame.K_6: "summon_vines",
 }
 
 
@@ -36,7 +39,7 @@ class Game:
 
         spawn = (MAP_WIDTH // 2, MAP_HEIGHT // 2)
         self.player = Player(spawn, self.asset_gen)
-        self.player.unlocked_skills = ["vine_whip", "rock_throw", "jungle_roar", "dash"]
+        self.player.unlocked_skills = ["vine_whip"]
 
         self.all_sprites = pygame.sprite.Group()
         self.enemies = pygame.sprite.Group()
@@ -56,6 +59,7 @@ class Game:
         self.particle_system = ParticleSystem()
 
         self.hud = HUD()
+        self.level_up_screen = LevelUpScreen()
         self.game_state = "playing"
         self.running = True
         self.xp_multiplier = 1.0
@@ -69,6 +73,11 @@ class Game:
             self.handle_events()
             if self.game_state == "playing":
                 self.update(dt)
+            elif self.game_state == "leveling_up":
+                self.level_up_screen.update(dt)
+                if self.level_up_screen.is_done:
+                    self.level_up_screen.apply_choice(self.player)
+                    self.game_state = "playing"
             self.draw()
         pygame.quit()
         sys.exit()
@@ -88,6 +97,9 @@ class Game:
                             self.projectiles, self.particles, self.asset_gen
                         )
                         self._spawn_damage_texts(hits)
+
+            if self.game_state == "leveling_up":
+                self.level_up_screen.handle_event(event)
 
         if self.game_state == "playing":
             keys = pygame.key.get_pressed()
@@ -117,6 +129,9 @@ class Game:
         for enemy in self.enemies:
             enemy.update(dt, self.player.pos)
 
+        vine_hits = self.skill_system.update_vine_traps(dt, self.enemies)
+        self._spawn_damage_texts(vine_hits)
+
         for proj in self.projectiles:
             proj.update(dt)
 
@@ -128,7 +143,9 @@ class Game:
                 leveled = self.player.gain_xp(xp_amount)
                 orb.kill()
                 if leveled:
-                    self._auto_level_up()
+                    self.game_state = "leveling_up"
+                    self.level_up_screen.show(self.player)
+                    break
 
         for p in self.particles:
             p.update(dt)
@@ -161,20 +178,6 @@ class Game:
             enemy, damage, is_crit = hit
             dt_sprite = DamageText(enemy.pos.copy(), damage, is_crit)
             self.damage_texts.add(dt_sprite)
-
-    def _auto_level_up(self):
-        stat = random.choice(["hp", "attack", "defense", "speed", "luck"])
-        if stat == "hp":
-            self.player._base_hp += 10
-        elif stat == "attack":
-            self.player._base_attack += 2
-        elif stat == "defense":
-            self.player._base_defense += 1
-        elif stat == "speed":
-            self.player._base_speed += 0.2
-        elif stat == "luck":
-            self.player._base_luck += 2
-        self.player._recalc_stats()
 
     def draw(self):
         self.screen.fill((0, 0, 0))
@@ -210,6 +213,9 @@ class Game:
                 dt_sprite.draw(self.screen, offset)
 
         self.hud.draw(self.screen, self.player, self.wave_spawner, self.powerup_system)
+
+        if self.game_state == "leveling_up":
+            self.level_up_screen.draw(self.screen)
 
         if self.game_state == "game_over":
             self._draw_game_over()

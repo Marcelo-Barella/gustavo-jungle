@@ -61,7 +61,8 @@ class HUD:
             return
         sx = 10
         sy = surface.get_height() - 30
-        for i, skill in enumerate(["vine_whip", "rock_throw", "jungle_roar", "dash"]):
+        skill_order = ["vine_whip", "rock_throw", "jungle_roar", "dash", "nature_shield", "summon_vines"]
+        for i, skill in enumerate(skill_order):
             if skill not in player.unlocked_skills:
                 continue
             cd = player.skill_cooldowns.get(skill, 0)
