@@ -1,5 +1,6 @@
 import sys
 import random
+import time
 import pygame
 from settings import SCREEN_WIDTH, SCREEN_HEIGHT, FPS, MAP_WIDTH, MAP_HEIGHT
 from assets.asset_generator import AssetGenerator
@@ -12,6 +13,7 @@ from systems.skills import SkillSystem
 from systems.powerups import PowerupSystem
 from systems.particles import ParticleSystem
 from ui.hud import HUD
+from ui.menus import MainMenu, PauseMenu, GameOverScreen
 
 
 SKILL_KEYS = {
@@ -31,6 +33,17 @@ class Game:
         self.clock = pygame.time.Clock()
 
         self.asset_gen = AssetGenerator()
+
+        self.main_menu = MainMenu()
+        self.pause_menu = PauseMenu()
+        self.game_over_screen = GameOverScreen()
+
+        self.game_state = "main_menu"
+        self.running = True
+
+        self._init_gameplay()
+
+    def _init_gameplay(self):
         self.map_manager = MapManager(self.asset_gen)
         self.camera = Camera()
 
@@ -56,11 +69,14 @@ class Game:
         self.particle_system = ParticleSystem()
 
         self.hud = HUD()
-        self.game_state = "playing"
-        self.running = True
         self.xp_multiplier = 1.0
 
         self.wave_spawner.start()
+
+    def restart(self):
+        self._init_gameplay()
+        self.game_over_screen.reset()
+        self.game_state = "playing"
 
     def run(self):
         while self.running:
@@ -77,10 +93,20 @@ class Game:
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 self.running = False
-            elif event.type == pygame.KEYDOWN:
-                if event.key == pygame.K_ESCAPE:
+                continue
+
+            if self.game_state == "main_menu":
+                action = self.main_menu.handle_event(event)
+                if action == "new_game":
+                    self.restart()
+                elif action == "quit":
                     self.running = False
-                if self.game_state == "playing":
+
+            elif self.game_state == "playing":
+                if event.type == pygame.KEYDOWN:
+                    if event.key == pygame.K_ESCAPE:
+                        self.game_state = "paused"
+                        continue
                     skill_name = SKILL_KEYS.get(event.key)
                     if skill_name:
                         hits = self.skill_system.use_skill(
@@ -88,6 +114,22 @@ class Game:
                             self.projectiles, self.particles, self.asset_gen
                         )
                         self._spawn_damage_texts(hits)
+
+            elif self.game_state == "paused":
+                action = self.pause_menu.handle_event(event)
+                if action == "resume":
+                    self.game_state = "playing"
+                elif action == "restart":
+                    self.restart()
+                elif action == "quit_to_menu":
+                    self.game_state = "main_menu"
+
+            elif self.game_state == "game_over":
+                action = self.game_over_screen.handle_event(event)
+                if action == "try_again":
+                    self.restart()
+                elif action == "main_menu":
+                    self.game_state = "main_menu"
 
         if self.game_state == "playing":
             keys = pygame.key.get_pressed()
@@ -154,6 +196,7 @@ class Game:
             self.xp_multiplier = 1.0
 
         if self.player.hp <= 0:
+            self.game_over_screen.reset()
             self.game_state = "game_over"
 
     def _spawn_damage_texts(self, hits: list[tuple]):
@@ -176,7 +219,22 @@ class Game:
             self.player._base_luck += 2
         self.player._recalc_stats()
 
+    def _get_game_over_stats(self):
+        stats = self.leveling_system.get_stats()
+        return {
+            "level": self.player.level,
+            "enemies_killed": stats["enemies_killed"],
+            "wave": self.wave_spawner.current_wave_number,
+            "time_survived": stats["time_survived"],
+            "xp_earned": stats["xp_earned"],
+        }
+
     def draw(self):
+        if self.game_state == "main_menu":
+            self.main_menu.draw(self.screen)
+            pygame.display.flip()
+            return
+
         self.screen.fill((0, 0, 0))
         offset = self.camera.get_offset()
         self.map_manager.draw(self.screen, offset)
@@ -211,27 +269,12 @@ class Game:
 
         self.hud.draw(self.screen, self.player, self.wave_spawner, self.powerup_system)
 
-        if self.game_state == "game_over":
-            self._draw_game_over()
+        if self.game_state == "paused":
+            self.pause_menu.draw(self.screen)
+        elif self.game_state == "game_over":
+            self.game_over_screen.draw(self.screen, self._get_game_over_stats())
 
         pygame.display.flip()
-
-    def _draw_game_over(self):
-        overlay = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT), pygame.SRCALPHA)
-        overlay.fill((0, 0, 0, 160))
-        self.screen.blit(overlay, (0, 0))
-        font = pygame.font.SysFont(None, 64)
-        text = font.render("GAME OVER", True, (220, 20, 20))
-        self.screen.blit(text, (SCREEN_WIDTH // 2 - text.get_width() // 2,
-                                SCREEN_HEIGHT // 2 - text.get_height() // 2))
-        stats = self.leveling_system.get_stats()
-        small = pygame.font.SysFont(None, 28)
-        info = small.render(
-            f"Level {self.player.level} | Killed {stats['enemies_killed']} | "
-            f"Wave {self.wave_spawner.current_wave_number}",
-            True, (255, 255, 255))
-        self.screen.blit(info, (SCREEN_WIDTH // 2 - info.get_width() // 2,
-                                SCREEN_HEIGHT // 2 + 40))
 
 
 if __name__ == "__main__":
