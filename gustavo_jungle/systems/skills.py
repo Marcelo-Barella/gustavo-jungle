@@ -1,6 +1,10 @@
 import math
 import pygame
-from settings import VINE_WHIP, ROCK_THROW, JUNGLE_ROAR, DASH_ATTACK, BROWN, GOLDEN
+from settings import (
+    VINE_WHIP, ROCK_THROW, JUNGLE_ROAR, DASH_ATTACK,
+    NATURE_SHIELD, SUMMON_VINES,
+    BROWN, GOLDEN, SCREEN_WIDTH, SCREEN_HEIGHT,
+)
 from entities.projectile import Projectile
 
 
@@ -62,6 +66,94 @@ class DashTrail(pygame.sprite.Sprite):
                       self.pos.y - camera_offset[1] - img.get_height() // 2))
 
 
+class NatureShieldVisual(pygame.sprite.Sprite):
+
+    def __init__(self, player, duration):
+        super().__init__()
+        self.player = player
+        self.timer = duration
+        self.duration = duration
+        self.pos = player.pos.copy()
+        self.image = pygame.Surface((1, 1), pygame.SRCALPHA)
+        self.rect = self.image.get_rect(center=(int(self.pos.x), int(self.pos.y)))
+
+    def update(self, dt):
+        self.timer -= dt
+        self.pos = self.player.pos.copy()
+        if self.timer <= 0:
+            self.kill()
+
+    def draw(self, surface: pygame.Surface, camera_offset: tuple[float, float]):
+        alpha = max(30, int(100 * (self.timer / self.duration)))
+        pulse = 1.0 + 0.1 * math.sin(self.timer * 6)
+        cx = int(self.pos.x - camera_offset[0])
+        cy = int(self.pos.y - camera_offset[1])
+        r = int(28 * pulse)
+        s = pygame.Surface((r * 2, r * 2), pygame.SRCALPHA)
+        pygame.draw.circle(s, (60, 220, 60, alpha), (r, r), r, 3)
+        pygame.draw.circle(s, (120, 255, 120, alpha // 3), (r, r), r)
+        surface.blit(s, (cx - r, cy - r))
+
+
+class VineTrapZone(pygame.sprite.Sprite):
+
+    def __init__(self, pos, conf):
+        super().__init__()
+        self.pos = pygame.math.Vector2(pos)
+        self.radius = conf["radius"]
+        self.damage_per_sec = conf["damage_per_sec"]
+        self.slow_factor = conf["slow_factor"]
+        self.timer = conf["duration"]
+        self.duration = conf["duration"]
+        self.damage_tick = 0.0
+        self.color = (34, 180, 34)
+        self.image = pygame.Surface((1, 1), pygame.SRCALPHA)
+        self.rect = self.image.get_rect(center=(int(self.pos.x), int(self.pos.y)))
+
+    def update(self, dt):
+        self.timer -= dt
+        if self.timer <= 0:
+            self.kill()
+
+    def process_enemies(self, dt, enemies):
+        if self.timer <= 0:
+            return []
+        self.damage_tick += dt
+        hits = []
+        if self.damage_tick >= 1.0:
+            self.damage_tick -= 1.0
+            for enemy in enemies:
+                if not enemy.is_alive:
+                    continue
+                dist = (enemy.pos - self.pos).length()
+                if dist <= self.radius:
+                    actual = enemy.take_damage(self.damage_per_sec)
+                    hits.append((enemy, actual, False))
+        for enemy in enemies:
+            if not enemy.is_alive:
+                continue
+            dist = (enemy.pos - self.pos).length()
+            if dist <= self.radius:
+                enemy.vel *= self.slow_factor
+        return hits
+
+    def draw(self, surface: pygame.Surface, camera_offset: tuple[float, float]):
+        alpha = max(30, int(120 * (self.timer / self.duration)))
+        cx = int(self.pos.x - camera_offset[0])
+        cy = int(self.pos.y - camera_offset[1])
+        r = int(self.radius)
+        s = pygame.Surface((r * 2, r * 2), pygame.SRCALPHA)
+        pygame.draw.circle(s, (*self.color, alpha // 2), (r, r), r)
+        pygame.draw.circle(s, (*self.color, min(255, alpha + 50)), (r, r), r, 2)
+        tendril_count = 8
+        for i in range(tendril_count):
+            angle = (2 * math.pi / tendril_count) * i + self.timer * 0.5
+            ex = r + int(math.cos(angle) * r * 0.7)
+            ey = r + int(math.sin(angle) * r * 0.7)
+            pygame.draw.line(s, (*self.color, min(255, alpha + 30)), (r, r), (ex, ey), 2)
+        surface.blit(s, (cx - r, cy - r))
+
+
 class SkillSystem:
 
     def __init__(self):
@@ -70,8 +162,11 @@ class SkillSystem:
             "rock_throw": ROCK_THROW,
             "jungle_roar": JUNGLE_ROAR,
             "dash": DASH_ATTACK,
+            "nature_shield": NATURE_SHIELD,
+            "summon_vines": SUMMON_VINES,
         }
         self.dash_state = None
+        self.vine_traps: list[VineTrapZone] = []
 
     def use_skill(self, skill_name, player, enemies, projectile_group, particles_group, asset_gen) -> list[tuple]:
         if skill_name not in player.unlocked_skills:
@@ -91,6 +186,10 @@ class SkillSystem:
             hits = self._jungle_roar(player, enemies, conf, particles_group)
         elif skill_name == "dash":
             self._dash_start(player, enemies, conf, particles_group)
+        elif skill_name == "nature_shield":
+            self._nature_shield(player, conf, particles_group)
+        elif skill_name == "summon_vines":
+            self._summon_vines(player, conf, particles_group)
 
         return hits
 
@@ -98,6 +197,16 @@ class SkillSystem:
         hits = []
         if self.dash_state is not None:
             hits = self._dash_update(dt, player, enemies)
+        return hits
+
+    def update_vine_traps(self, dt, enemies):
+        hits = []
+        for trap in list(self.vine_traps):
+            if trap.timer <= 0:
+                self.vine_traps.remove(trap)
+                continue
+            trap_hits = trap.process_enemies(dt, enemies)
+            hits.extend(trap_hits)
         return hits
 
     def _vine_whip(self, player, enemies, conf, particles_group) -> list[tuple]:
@@ -199,3 +308,23 @@ class SkillSystem:
             self.dash_state = None
 
         return hits
+
+    def _nature_shield(self, player, conf, particles_group):
+        player.shield_timer = conf["duration"]
+        player.damage_reduction = conf["damage_reduction"]
+        vis = NatureShieldVisual(player, conf["duration"])
+        particles_group.add(vis)
+
+    def _summon_vines(self, player, conf, particles_group):
+        mouse_pos = pygame.mouse.get_pos()
+        camera_offset = (
+            player.pos.x - SCREEN_WIDTH / 2,
+            player.pos.y - SCREEN_HEIGHT / 2,
+        )
+        world_pos = (
+            mouse_pos[0] + camera_offset[0],
+            mouse_pos[1] + camera_offset[1],
+        )
+        trap = VineTrapZone(world_pos, conf)
+        self.vine_traps.append(trap)
+        particles_group.add(trap)
