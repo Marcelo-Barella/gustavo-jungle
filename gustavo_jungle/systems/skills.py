@@ -3,6 +3,41 @@ import pygame
 from settings import VINE_WHIP, ROCK_THROW, JUNGLE_ROAR, DASH_ATTACK, BROWN, GOLDEN
 from entities.projectile import Projectile
 
+SKILL_INFO: dict[str, dict] = {
+    "vine_whip": {
+        "name": "Vine Whip",
+        "description": "Lash enemies with jungle vines.",
+        "unlock_level": 1,
+        "icon_color": (34, 180, 34),
+        "max_rank": 3,
+        "rank_bonuses": [1.0, 1.2, 1.5],
+    },
+    "rock_throw": {
+        "name": "Rock Throw",
+        "description": "Hurl a rock at distant target.",
+        "unlock_level": 3,
+        "icon_color": (139, 90, 43),
+        "max_rank": 3,
+        "rank_bonuses": [1.0, 1.25, 1.6],
+    },
+    "jungle_roar": {
+        "name": "Jungle Roar",
+        "description": "Stun and damage nearby foes.",
+        "unlock_level": 5,
+        "icon_color": (255, 215, 0),
+        "max_rank": 3,
+        "rank_bonuses": [1.0, 1.3, 1.7],
+    },
+    "dash": {
+        "name": "Dash Attack",
+        "description": "Dash forward damaging enemies.",
+        "unlock_level": 7,
+        "icon_color": (64, 164, 223),
+        "max_rank": 3,
+        "rank_bonuses": [1.0, 1.2, 1.5],
+    },
+}
+
 
 class SkillVisual(pygame.sprite.Sprite):
 
@@ -72,6 +107,47 @@ class SkillSystem:
             "dash": DASH_ATTACK,
         }
         self.dash_state = None
+        self.skill_ranks: dict[str, int] = {}
+
+    def get_skill_rank(self, skill_name: str) -> int:
+        return self.skill_ranks.get(skill_name, 0)
+
+    def upgrade_skill(self, skill_name: str) -> bool:
+        if skill_name not in SKILL_INFO:
+            return False
+        info = SKILL_INFO[skill_name]
+        current = self.skill_ranks.get(skill_name, 0)
+        if current <= 0 or current >= info["max_rank"]:
+            return False
+        self.skill_ranks[skill_name] = current + 1
+        return True
+
+    def get_available_unlocks(self, player_level: int, unlocked_skills: list[str]) -> list[str]:
+        result = []
+        for sname, info in SKILL_INFO.items():
+            if sname not in unlocked_skills and player_level >= info["unlock_level"]:
+                result.append(sname)
+        return result
+
+    def get_available_upgrades(self, unlocked_skills: list[str]) -> list[str]:
+        result = []
+        for sname in unlocked_skills:
+            if sname not in SKILL_INFO:
+                continue
+            info = SKILL_INFO[sname]
+            current = self.skill_ranks.get(sname, 0)
+            if 0 < current < info["max_rank"]:
+                result.append(sname)
+        return result
+
+    def get_skill_info(self, skill_name: str) -> dict:
+        return dict(SKILL_INFO.get(skill_name, {}))
+
+    def get_cooldown_reduction(self, skill_name: str) -> float:
+        rank = self.skill_ranks.get(skill_name, 0)
+        if rank <= 0:
+            return 0.0
+        return 0.10 * rank
 
     def use_skill(self, skill_name, player, enemies, projectile_group, particles_group, asset_gen) -> list[tuple]:
         if skill_name not in player.unlocked_skills:
@@ -114,7 +190,10 @@ class SkillSystem:
                 angle = math.acos(max(-1, min(1, facing.dot(diff.normalize()))))
                 if angle > math.pi / 4:
                     continue
-            damage = int(player.attack * conf["damage_mult"])
+            rank = self.skill_ranks.get("vine_whip", 1)
+            info = SKILL_INFO["vine_whip"]
+            bonus = info["rank_bonuses"][rank - 1]
+            damage = int(player.attack * conf["damage_mult"] * bonus)
             actual = enemy.take_damage(damage)
             hits.append((enemy, actual, False))
         vis = SkillVisual(player.pos + facing * 30, "whip", conf["range"], 0.3, (34, 180, 34))
@@ -126,7 +205,10 @@ class SkillSystem:
         from systems.map_manager import Camera
         offset = pygame.math.Vector2(0, 0)
         direction = player.facing_direction
-        damage = int(player.attack * conf["damage_mult"])
+        rank = self.skill_ranks.get("rock_throw", 1)
+        info = SKILL_INFO["rock_throw"]
+        bonus = info["rank_bonuses"][rank - 1]
+        damage = int(player.attack * conf["damage_mult"] * bonus)
         lifetime = conf["range"] / max(1, conf["speed"] * 60)
         proj = Projectile(player.pos, direction, conf["speed"], damage, lifetime, BROWN, size=10)
         projectile_group.add(proj)
@@ -139,7 +221,10 @@ class SkillSystem:
             dist = (enemy.pos - player.pos).length()
             if dist > conf["radius"]:
                 continue
-            damage = int(player.attack * conf["damage_mult"])
+            rank = self.skill_ranks.get("jungle_roar", 1)
+            info = SKILL_INFO["jungle_roar"]
+            bonus = info["rank_bonuses"][rank - 1]
+            damage = int(player.attack * conf["damage_mult"] * bonus)
             actual = enemy.take_damage(damage)
             enemy.state = "hurt"
             enemy.state_timer = conf["stun_duration"]
@@ -153,13 +238,16 @@ class SkillSystem:
         direction = player.facing_direction.copy()
         if direction.length_squared() == 0:
             direction = pygame.math.Vector2(1, 0)
+        rank = self.skill_ranks.get("dash", 1)
+        info = SKILL_INFO["dash"]
+        bonus = info["rank_bonuses"][rank - 1]
         self.dash_state = {
             "start_pos": player.pos.copy(),
             "direction": direction.normalize(),
             "distance": conf["distance"],
             "duration": conf["duration"],
             "timer": conf["duration"],
-            "damage_mult": conf["damage_mult"],
+            "damage_mult": conf["damage_mult"] * bonus,
             "hit_enemies": set(),
             "particles_group": particles_group,
             "trail_interval": conf["duration"] / 4,

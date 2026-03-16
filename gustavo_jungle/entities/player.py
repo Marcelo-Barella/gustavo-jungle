@@ -35,6 +35,7 @@ class Player(pygame.sprite.Sprite):
         self.animation_timer = 0.0
 
         self.unlocked_skills: list[str] = []
+        self.skill_ranks: dict[str, int] = {}
         self.skill_cooldowns: dict[str, float] = {}
 
         self.image = self.sprites["idle"][0]
@@ -125,6 +126,15 @@ class Player(pygame.sprite.Sprite):
         self.xp_to_next_level = int(XP_BASE * (self.level ** XP_EXPONENT))
         self.current_xp = max(0, overflow)
         self.hp = min(self.max_hp, self.hp + self.max_hp // 4)
+
+    def unlock_skill(self, skill_name: str):
+        if skill_name not in self.unlocked_skills:
+            self.unlocked_skills.append(skill_name)
+            self.skill_ranks[skill_name] = 1
+
+    def upgrade_skill(self, skill_name: str):
+        if skill_name in self.unlocked_skills:
+            self.skill_ranks[skill_name] = self.skill_ranks.get(skill_name, 1) + 1
 
     def draw(self, surface: pygame.Surface, camera_offset: tuple[float, float]):
         if self.is_invincible:
